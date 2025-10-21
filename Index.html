@@ -1,1 +1,328 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1 Segundo por Dia</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+        }
+        video {
+            transition: transform 0.5s ease;
+        }
+        .record-button.recording {
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .fade-transition {
+            transition: opacity 0.5s ease-in-out;
+        }
+        #toast {
+            transition: transform 0.5s ease, opacity 0.5s ease;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white">
+    <div class="w-full max-w-sm mx-auto p-4 flex flex-col h-full">
+        <!-- Header -->
+        <header class="text-center py-4 flex-shrink-0">
+            <h1 class="text-2xl font-bold text-gray-100">1 Segundo por Dia</h1>
+            <p id="clip-count" class="text-gray-400">Carregando clipes...</p>
+        </header>
+
+        <!-- Main Content -->
+        <main class="flex-grow flex flex-col justify-center relative my-4 overflow-hidden rounded-3xl">
+            <!-- Loading Indicator -->
+            <div id="loading-overlay" class="absolute inset-0 bg-gray-900 bg-opacity-80 flex flex-col items-center justify-center z-30">
+                <i class="fas fa-spinner fa-spin text-4xl mb-4"></i>
+                <p>Configurando...</p>
+            </div>
+
+            <!-- Video Player / Camera View -->
+            <div id="main-view" class="bg-gray-800 shadow-lg w-full h-full">
+                <video id="camera-view" class="w-full h-full object-cover" autoplay muted playsinline></video>
+                <video id="preview-player" class="hidden fade-transition w-full h-full object-cover" playsinline></video>
+            </div>
+            <p id="preview-date" class="absolute bottom-2 left-0 right-0 text-center text-sm text-white bg-black bg-opacity-30 p-1 h-8 flex items-center justify-center"></p>
+        </main>
+
+        <!-- Controls -->
+        <footer class="py-2 flex-shrink-0 flex flex-col items-center justify-center">
+             <div id="camera-controls" class="w-full flex flex-col items-center space-y-4">
+                <button id="record-button" class="record-button bg-red-600 hover:bg-red-700 disabled:bg-gray-500 text-white w-20 h-20 rounded-full flex items-center justify-center shadow-lg focus:outline-none" disabled>
+                    <i class="fas fa-video text-3xl"></i>
+                </button>
+                <div class="w-full space-y-2">
+                    <button id="switch-camera-button" class="bg-gray-700 hover:bg-gray-600 disabled:bg-gray-500 text-white font-bold py-3 px-6 rounded-full shadow-lg focus:outline-none w-full" disabled>
+                        <i class="fas fa-sync-alt mr-2"></i> Trocar Câmera
+                    </button>
+                    <button id="preview-button" class="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-500 text-white font-bold py-3 px-6 rounded-full shadow-lg focus:outline-none w-full" disabled>
+                        <i class="fas fa-play mr-2"></i> Ver Compilação
+                    </button>
+                </div>
+            </div>
+            <div id="preview-controls" class="hidden w-full">
+                 <button id="back-to-camera-button" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-full shadow-lg focus:outline-none w-full">
+                    <i class="fas fa-camera mr-2"></i> Voltar para Câmera
+                </button>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 bg-green-600 text-white py-2 px-5 rounded-full text-sm shadow-xl opacity-0 translate-y-10">
+        <p>Clipe salvo com sucesso!</p>
+    </div>
+
+    <script type="module">
+        // Importar funções do Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Configuração do Firebase ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBRbNCv3zln0FV8XjxHm8_24CGVo6dx3-4",
+            authDomain: "onesecond-498b7.firebaseapp.com",
+            projectId: "onesecond-498b7",
+            storageBucket: "onesecond-498b7.appspot.com",
+            messagingSenderId: "32229681897",
+            appId: "1:32229681897:web:fb1f167c5e755717a91e78",
+            measurementId: "G-GK8KBW4FT1"
+        };
+        const appId = 'onesecond-498b7';
+
+        // --- Elementos da UI ---
+        const cameraView = document.getElementById('camera-view');
+        const previewPlayer = document.getElementById('preview-player');
+        const recordButton = document.getElementById('record-button');
+        const previewButton = document.getElementById('preview-button');
+        const switchCameraButton = document.getElementById('switch-camera-button');
+        const backToCameraButton = document.getElementById('back-to-camera-button');
+        const clipCountEl = document.getElementById('clip-count');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const toast = document.getElementById('toast');
+        const previewDateEl = document.getElementById('preview-date');
+        const cameraControls = document.getElementById('camera-controls');
+        const previewControls = document.getElementById('preview-controls');
+
+        // --- Estado do Aplicativo ---
+        let db, auth;
+        let userId;
+        let mediaRecorder;
+        let recordedChunks = [];
+        let videoClips = [];
+        let currentClipIndex = 0;
+        let isRecording = false;
+        let currentFacingMode = 'user';
+
+        // --- Inicialização ---
+        async function initializeFirebase() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                onAuthStateChanged(auth, user => {
+                    if (user) {
+                        userId = user.uid;
+                        setupApp();
+                    } else {
+                        signInAnonymously(auth);
+                    }
+                });
+            } catch (error) {
+                console.error("Erro ao inicializar Firebase:", error);
+                loadingOverlay.innerText = "Erro ao conectar.";
+            }
+        }
+
+        function setupApp() {
+            initCamera();
+            listenForVideos();
+            recordButton.addEventListener('click', toggleRecording);
+            previewButton.addEventListener('click', playCompilation);
+            backToCameraButton.addEventListener('click', showCameraView);
+            switchCameraButton.addEventListener('click', switchCamera);
+            previewPlayer.addEventListener('ended', playNextClip);
+        }
+
+        // --- Câmera ---
+        async function initCamera() {
+            if (cameraView.srcObject) {
+                cameraView.srcObject.getTracks().forEach(track => track.stop());
+            }
+            cameraView.style.transform = currentFacingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: currentFacingMode }, 
+                    audio: false 
+                });
+                cameraView.srcObject = stream;
+                setupMediaRecorder(stream);
+                recordButton.disabled = false;
+                switchCameraButton.disabled = false;
+            } catch (err) {
+                console.error("Erro ao acessar a câmera:", err);
+                alert("Não foi possível acessar a câmera. Verifique as permissões.");
+                loadingOverlay.innerText = "Câmera não acessível.";
+            }
+        }
+
+        function switchCamera() {
+            currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+            recordButton.disabled = true;
+            switchCameraButton.disabled = true;
+            initCamera();
+        }
+
+        // --- Gravação e Salvamento ---
+        function setupMediaRecorder(stream) {
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+            mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                saveVideo(blob);
+                recordedChunks = [];
+            };
+        }
+
+        function toggleRecording() {
+            if (isRecording) return;
+            isRecording = true;
+            recordButton.classList.add('recording');
+            recordButton.disabled = true;
+            previewButton.disabled = true;
+            switchCameraButton.disabled = true;
+            mediaRecorder.start();
+            setTimeout(() => { mediaRecorder.stop(); recordButton.classList.remove('recording'); }, 1500);
+        }
+
+        function saveVideo(blob) {
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = async () => {
+                const base64data = reader.result;
+                try {
+                    const collectionRef = collection(db, `artifacts/${appId}/users/${userId}/videos`);
+                    await addDoc(collectionRef, { videoData: base64data, createdAt: serverTimestamp() });
+                    showToast("Clipe salvo com sucesso!");
+                } catch (error) {
+                    console.error("Erro ao salvar o vídeo: ", error);
+                    alert("Ocorreu um erro ao salvar seu clipe.");
+                } finally {
+                    isRecording = false;
+                    updateUIWithVideoData();
+                }
+            };
+        }
+
+        function listenForVideos() {
+            const collectionRef = collection(db, `artifacts/${appId}/users/${userId}/videos`);
+            const q = query(collectionRef, orderBy("createdAt", "asc"));
+            onSnapshot(q, (snapshot) => {
+                videoClips = snapshot.docs.map(doc => doc.data());
+                updateUIWithVideoData();
+                if (loadingOverlay) { loadingOverlay.style.display = 'none'; }
+            }, (error) => {
+                console.error("Erro ao buscar vídeos:", error);
+                if (loadingOverlay) { loadingOverlay.innerText = "Erro ao carregar clipes."; }
+            });
+        }
+        
+        // --- UI e Reprodução ---
+        function updateUIWithVideoData() {
+            const count = videoClips.length;
+            clipCountEl.textContent = count === 1 ? '1 clipe gravado' : `${count} clipes gravados`;
+            previewButton.disabled = count === 0;
+            switchCameraButton.disabled = isRecording;
+            if (isTodayClipRecorded()) {
+                recordButton.disabled = true;
+                recordButton.innerHTML = `<i class="fas fa-check text-3xl"></i>`;
+                recordButton.title = "Você já gravou o clipe de hoje!";
+            } else {
+                 recordButton.disabled = isRecording;
+                 recordButton.innerHTML = `<i class="fas fa-video text-3xl"></i>`;
+                 recordButton.title = "Grave o clipe de hoje";
+            }
+        }
+        
+        function isTodayClipRecorded() {
+            if (videoClips.length === 0) return false;
+            const lastClip = videoClips[videoClips.length - 1];
+            if (!lastClip.createdAt) return false;
+            const lastClipDate = lastClip.createdAt.toDate();
+            const today = new Date();
+            return lastClipDate.getFullYear() === today.getFullYear() &&
+                   lastClipDate.getMonth() === today.getMonth() &&
+                   lastClipDate.getDate() === today.getDate();
+        }
+
+        function showPreviewView() {
+            cameraView.classList.add('hidden');
+            previewPlayer.classList.remove('hidden');
+            cameraControls.classList.add('hidden');
+            previewControls.classList.remove('hidden');
+        }
+
+        function showCameraView() {
+            previewPlayer.pause();
+            previewPlayer.classList.add('hidden');
+            cameraView.classList.remove('hidden');
+            previewControls.classList.add('hidden');
+            cameraControls.classList.remove('hidden');
+            previewDateEl.textContent = '';
+        }
+
+        function playCompilation() {
+            if (videoClips.length === 0) return;
+            showPreviewView();
+            currentClipIndex = 0;
+            playCurrentClip();
+        }
+
+        function playNextClip() {
+            previewPlayer.style.opacity = 0;
+            currentClipIndex++;
+            if (currentClipIndex < videoClips.length) {
+                setTimeout(playCurrentClip, 500);
+            } else {
+                showToast("Fim da compilação!");
+                setTimeout(showCameraView, 1000);
+            }
+        }
+        
+        function playCurrentClip() {
+            const clip = videoClips[currentClipIndex];
+            previewPlayer.src = clip.videoData;
+            previewPlayer.play();
+            previewPlayer.style.opacity = 1;
+            if (clip.createdAt) { previewDateEl.textContent = clip.createdAt.toDate().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }); }
+        }
+
+        function showToast(message) {
+            toast.textContent = message;
+            toast.classList.remove('opacity-0', 'translate-y-10');
+            setTimeout(() => { toast.classList.add('opacity-0', 'translate-y-10'); }, 3000);
+        }
+
+        initializeFirebase();
+    </script>
+</body>
+</html>
+
+
 
