@@ -11,7 +11,7 @@
         html, body {
             height: 100%;
             overflow: hidden;
-            -webkit-tap-highlight-color: transparent; /* Remove o highlight azul ao tocar nos botões */
+            -webkit-tap-highlight-color: transparent;
         }
         body {
             font-family: 'Inter', sans-serif;
@@ -95,12 +95,12 @@
     </div>
 
     <script type="module">
-        // Importar funções do Firebase
+        // Import Firebase functions
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- Configuração do Firebase ---
+        // --- Firebase Config ---
         const firebaseConfig = {
             apiKey: "AIzaSyBRbNCv3zln0FV8XjxHm8_24CGVo6dx3-4",
             authDomain: "onesecond-498b7.firebaseapp.com",
@@ -112,7 +112,7 @@
         };
         const appId = 'onesecond-498b7';
 
-        // --- Elementos da UI ---
+        // --- UI Elements ---
         const cameraView = document.getElementById('camera-view');
         const previewPlayer = document.getElementById('preview-player');
         const recordButton = document.getElementById('record-button');
@@ -128,7 +128,7 @@
         const countdownOverlay = document.getElementById('countdown-overlay');
         const countdownText = document.getElementById('countdown-text');
 
-        // --- Estado do Aplicativo ---
+        // --- App State ---
         let db, auth;
         let userId;
         let mediaRecorder;
@@ -136,12 +136,10 @@
         let videoClips = [];
         let currentClipIndex = 0;
         let isRecording = false;
-        let currentFacingMode = 'user';
-        let videoDevices = [];
-        let currentDeviceIndex = 0;
+        let currentFacingMode = 'user'; // 'user' for front, 'environment' for back
         const DAILY_CLIP_LIMIT = 3;
 
-        // --- Inicialização ---
+        // --- Initialization ---
         async function initializeFirebase() {
             try {
                 const app = initializeApp(firebaseConfig);
@@ -156,14 +154,25 @@
                     }
                 });
             } catch (error) {
-                console.error("Erro ao inicializar Firebase:", error);
-                loadingOverlay.innerText = "Erro ao conectar.";
+                console.error("Firebase initialization error:", error);
+                loadingOverlay.innerText = "Connection Error.";
             }
         }
 
         async function setupApp() {
-            await getVideoDevices();
-            initCamera();
+            // Check for camera support
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const hasVideo = devices.some(device => device.kind === 'videoinput');
+            const hasMultipleCameras = devices.filter(d => d.kind === 'videoinput').length > 1;
+            switchCameraButton.disabled = !hasMultipleCameras;
+
+            if (hasVideo) {
+                initCamera();
+            } else {
+                alert("No camera found on this device.");
+                loadingOverlay.innerText = "No camera found.";
+            }
+            
             listenForVideos();
             recordButton.addEventListener('click', handleRecordClick);
             previewButton.addEventListener('click', playCompilation);
@@ -172,64 +181,52 @@
             previewPlayer.addEventListener('ended', playNextClip);
         }
 
-        // --- Câmera ---
-        async function getVideoDevices() {
-            try {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const frontCameras = devices.filter(d => d.kind === 'videoinput' && d.label.toLowerCase().includes('front'));
-                const backCameras = devices.filter(d => d.kind === 'videoinput' && !d.label.toLowerCase().includes('front'));
-                
-                // Prioriza câmeras que não sejam "wide" ou "ultra wide"
-                const preferredBackCamera = backCameras.find(d => !d.label.toLowerCase().includes('wide')) || backCameras[0];
-                const preferredFrontCamera = frontCameras[0];
-
-                videoDevices = [];
-                if (preferredFrontCamera) videoDevices.push(preferredFrontCamera);
-                if (preferredBackCamera) videoDevices.push(preferredBackCamera);
-                
-                switchCameraButton.disabled = videoDevices.length < 2;
-
-            } catch (err) {
-                 console.error("Erro ao listar dispositivos de vídeo:", err);
-            }
-        }
-
+        // --- Camera Logic ---
         async function initCamera() {
             if (cameraView.srcObject) {
                 cameraView.srcObject.getTracks().forEach(track => track.stop());
             }
-
-            if(videoDevices.length === 0) {
-                alert("Nenhuma câmera encontrada.");
-                return;
-            }
             
-            const device = videoDevices[currentDeviceIndex];
-            const isFrontFacing = device.label.toLowerCase().includes('front');
-            cameraView.style.transform = isFrontFacing ? 'scaleX(-1)' : 'scaleX(1)';
+            cameraView.style.transform = currentFacingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { deviceId: { exact: device.deviceId } }, 
+                    video: { facingMode: currentFacingMode }, 
                     audio: false 
                 });
                 cameraView.srcObject = stream;
+                
+                // NEW: Logic to force 1.0x zoom on the rear camera
+                if (currentFacingMode === 'environment') {
+                    const track = stream.getVideoTracks()[0];
+                    const capabilities = track.getCapabilities();
+                    
+                    if (capabilities.zoom) {
+                        try {
+                            await track.applyConstraints({ zoom: 1.0 });
+                        } catch (err) {
+                            console.warn("Could not set zoom to 1.0:", err);
+                        }
+                    }
+                }
+
                 setupMediaRecorder(stream);
                 recordButton.disabled = false;
+                
             } catch (err) {
-                console.error("Erro ao acessar a câmera:", err);
-                alert("Não foi possível acessar a câmera. Verifique as permissões.");
-                loadingOverlay.innerText = "Câmera não acessível.";
+                console.error("Camera access error:", err);
+                alert("Could not access the camera. Please check permissions.");
+                loadingOverlay.innerText = "Camera not accessible.";
             }
         }
 
         function switchCamera() {
-            currentDeviceIndex = (currentDeviceIndex + 1) % videoDevices.length;
+            currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
             recordButton.disabled = true;
             initCamera();
         }
 
-        // --- Gravação e Contagem Regressiva ---
+        // --- Recording & Countdown ---
         function handleRecordClick() {
             if (isRecording) return;
             startCountdown();
@@ -264,7 +261,7 @@
             }, 1500);
         }
 
-        // --- Salvamento e Base de Dados ---
+        // --- Saving & Database ---
         function setupMediaRecorder(stream) {
             mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
             mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
@@ -283,13 +280,13 @@
                 try {
                     const collectionRef = collection(db, `artifacts/${appId}/users/${userId}/videos`);
                     await addDoc(collectionRef, { videoData: base64data, createdAt: serverTimestamp() });
-                    showToast("Clipe salvo com sucesso!");
+                    showToast("Clip saved successfully!");
                 } catch (error) {
-                    console.error("Erro ao salvar o vídeo: ", error);
-                    alert("Ocorreu um erro ao salvar seu clipe.");
+                    console.error("Error saving video: ", error);
+                    alert("An error occurred while saving your clip.");
                 } finally {
                     isRecording = false;
-                    updateUIWithVideoData(); // A UI será atualizada quando o onSnapshot detetar a mudança
+                    // UI will be updated by onSnapshot
                 }
             };
         }
@@ -300,30 +297,32 @@
             onSnapshot(q, (snapshot) => {
                 videoClips = snapshot.docs.map(doc => doc.data());
                 updateUIWithVideoData();
-                if (loadingOverlay) { loadingOverlay.style.display = 'none'; }
+                loadingOverlay.style.display = 'none';
             }, (error) => {
-                console.error("Erro ao buscar vídeos:", error);
-                if (loadingOverlay) { loadingOverlay.innerText = "Erro ao carregar clipes."; }
+                console.error("Error fetching videos:", error);
+                loadingOverlay.innerText = "Error loading clips.";
             });
         }
         
-        // --- UI e Reprodução ---
+        // --- UI & Playback ---
         function updateUIWithVideoData() {
             const count = videoClips.length;
             const todayClipsCount = getTodayClipsCount();
 
-            clipCountEl.textContent = `${count} clipe${count !== 1 ? 's' : ''} gravado${count !== 1 ? 's' : ''} | Hoje: ${todayClipsCount}/${DAILY_CLIP_LIMIT}`;
+            clipCountEl.textContent = `${count} clip${count !== 1 ? 's' : ''} recorded | Today: ${todayClipsCount}/${DAILY_CLIP_LIMIT}`;
             previewButton.disabled = count === 0;
-            switchCameraButton.disabled = isRecording || videoDevices.length < 2;
+
+            const hasMultipleCameras = document.getElementById('switch-camera-button').disabled === false;
+            switchCameraButton.disabled = isRecording || !hasMultipleCameras;
             
             if (todayClipsCount >= DAILY_CLIP_LIMIT) {
                 recordButton.disabled = true;
                 recordButton.innerHTML = `<i class="fas fa-check text-3xl"></i>`;
-                recordButton.title = "Você atingiu o limite de clipes de hoje!";
+                recordButton.title = "You have reached today's clip limit!";
             } else {
                  recordButton.disabled = isRecording;
                  recordButton.innerHTML = `<i class="fas fa-video text-3xl"></i>`;
-                 recordButton.title = `Grave (${todayClipsCount}/${DAILY_CLIP_LIMIT} hoje)`;
+                 recordButton.title = `Record (${todayClipsCount}/${DAILY_CLIP_LIMIT} today)`;
             }
         }
         
@@ -368,7 +367,7 @@
             if (currentClipIndex < videoClips.length) {
                 setTimeout(playCurrentClip, 500);
             } else {
-                showToast("Fim da compilação!");
+                showToast("End of compilation!");
                 setTimeout(showCameraView, 1000);
             }
         }
