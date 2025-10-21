@@ -19,7 +19,6 @@
             100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
         }
         #toast, #countdown-overlay { transition: all 0.5s ease; }
-        .gallery-item video { max-height: 200px; }
     </style>
 </head>
 <body class="bg-gray-900 text-white">
@@ -40,9 +39,9 @@
                 <p id="home-clip-count" class="text-gray-400 mt-2">...</p>
             </header>
             <main class="flex-grow flex flex-col justify-center space-y-4">
-                <button id="open-camera-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg text-lg"><i class="fas fa-camera mr-3"></i>Abrir Câmera</button>
-                <button id="open-gallery-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg text-lg"><i class="fas fa-images mr-3"></i>Ver Galeria</button>
-                <button id="export-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg text-lg"><i class="fas fa-download mr-3"></i>Exportar Compilado</button>
+                <button id="open-camera-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg text-lg"><i class="fas fa-camera mr-3"></i>Gravar Clipe</button>
+                <button id="view-compilation-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg text-lg"><i class="fas fa-play-circle mr-3"></i>Ver Compilado</button>
+                <button id="export-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg text-lg"><i class="fas fa-download mr-3"></i>Exportar Vídeo Final</button>
                 <button id="delete-all-btn" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-5 rounded-xl shadow-lg mt-8"><i class="fas fa-trash-alt mr-2"></i>Apagar Tudo</button>
             </main>
         </div>
@@ -51,13 +50,13 @@
         <div id="camera-view" class="view flex-col h-full">
             <header class="flex items-center justify-between py-2">
                  <button id="back-to-home-from-camera" class="text-xl p-2"><i class="fas fa-arrow-left"></i></button>
-                 <select id="camera-select" class="bg-gray-800 text-white border border-gray-700 rounded-md p-2 text-sm">
+                 <select id="camera-select" class="bg-gray-800 text-white border border-gray-700 rounded-md p-2 text-sm w-full mx-4">
                     <option>A detetar câmaras...</option>
                  </select>
             </header>
              <main class="flex-grow flex flex-col justify-center relative my-2 overflow-hidden rounded-3xl">
                 <div id="countdown-overlay" class="absolute inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center z-40 text-8xl font-bold text-white opacity-0 pointer-events-none"><span id="countdown-text">3</span></div>
-                <div id="main-view" class="bg-gray-800 shadow-lg w-full h-full">
+                <div class="bg-gray-800 shadow-lg w-full h-full">
                     <video id="camera-video-element" class="w-full h-full object-cover" autoplay muted playsinline></video>
                 </div>
             </main>
@@ -68,23 +67,36 @@
             </footer>
         </div>
         
-        <!-- ===== Gallery View ===== -->
-        <div id="gallery-view" class="view flex-col h-full">
-             <header class="flex items-center py-4">
-                 <button id="back-to-home-from-gallery" class="text-xl p-2 mr-4"><i class="fas fa-arrow-left"></i></button>
-                 <h1 class="text-2xl font-bold">Galeria de Clipes</h1>
+        <!-- ===== Preview View ===== -->
+        <div id="preview-view" class="view flex-col h-full">
+            <header class="text-center py-4">
+                <h1 class="text-2xl font-bold">Pré-visualização</h1>
             </header>
-            <main id="gallery-grid" class="flex-grow overflow-y-auto space-y-4 pr-2">
-                <!-- Clips will be inserted here -->
+            <main class="flex-grow my-2 rounded-3xl overflow-hidden">
+                <video id="preview-video-element" class="w-full h-full object-cover bg-gray-800" controls autoplay loop></video>
+            </main>
+            <footer class="py-2 flex flex-col space-y-3">
+                <button id="save-clip-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl w-full text-lg"><i class="fas fa-save mr-2"></i>Salvar Clipe</button>
+                <button id="rerecord-btn" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-xl w-full"><i class="fas fa-redo mr-2"></i>Gravar Novamente</button>
+            </footer>
+        </div>
+        
+        <!-- ===== Compilation View ===== -->
+        <div id="compilation-view" class="view flex-col h-full">
+            <header class="flex items-center py-4">
+                 <button id="back-to-home-from-compilation" class="text-xl p-2 mr-4"><i class="fas fa-arrow-left"></i></button>
+                 <h1 class="text-2xl font-bold">Compilado</h1>
+            </header>
+            <main class="flex-grow my-2 rounded-3xl overflow-hidden relative bg-gray-800">
+                <video id="compilation-player" class="w-full h-full object-cover" playsinline></video>
+                <p id="compilation-date" class="absolute bottom-2 left-0 right-0 text-center text-sm text-white bg-black bg-opacity-40 p-1"></p>
             </main>
         </div>
 
     </div>
 
-    <!-- Toast Notification -->
+    <!-- Toast & Modal -->
     <div id="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 bg-green-600 text-white py-2 px-5 rounded-full text-sm shadow-xl opacity-0 translate-y-10"></div>
-
-    <!-- Confirmation Modal -->
     <div id="confirmation-modal" class="fixed inset-0 bg-black bg-opacity-70 items-center justify-center z-50 hidden">
         <div class="bg-gray-800 rounded-lg p-6 w-11/12 max-w-sm text-center">
             <p id="modal-text" class="mb-6">Tem a certeza?</p>
@@ -99,9 +111,8 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- Firebase Config ---
         const firebaseConfig = {
             apiKey: "AIzaSyBRbNCv3zln0FV8XjxHm8_24CGVo6dx3-4",
             authDomain: "onesecond-498b7.firebaseapp.com",
@@ -113,70 +124,53 @@
         };
         const appId = 'onesecond-498b7';
 
-        // --- State ---
-        let db, auth, userId, mediaRecorder;
+        let db, auth, userId, mediaRecorder, currentStream;
         let videoClips = [];
         let recordedChunks = [];
         let isRecording = false;
+        let tempRecordedBlob = null;
+        let currentClipIndex = 0;
         const DAILY_CLIP_LIMIT = 3;
-        let currentStream;
 
-        // --- UI Elements ---
         const loadingOverlay = document.getElementById('loading-overlay');
         const loadingText = document.getElementById('loading-text');
         const views = document.querySelectorAll('.view');
         const homeClipCount = document.getElementById('home-clip-count');
         const cameraVideoElement = document.getElementById('camera-video-element');
         const recordButton = document.getElementById('record-button');
-        const galleryGrid = document.getElementById('gallery-grid');
         const cameraSelect = document.getElementById('camera-select');
+        const previewVideoElement = document.getElementById('preview-video-element');
+        const compilationPlayer = document.getElementById('compilation-player');
+        const compilationDate = document.getElementById('compilation-date');
         const toast = document.getElementById('toast');
         const confirmationModal = document.getElementById('confirmation-modal');
         const modalText = document.getElementById('modal-text');
-        
-        // --- Navigation ---
+
         function showView(viewId) {
             views.forEach(v => v.classList.remove('active'));
             document.getElementById(viewId).classList.add('active');
         }
-
-        document.getElementById('open-camera-btn').addEventListener('click', () => {
-             showView('camera-view');
-             initCamera();
-        });
-        document.getElementById('open-gallery-btn').addEventListener('click', () => showView('gallery-view'));
-        document.getElementById('back-to-home-from-camera').addEventListener('click', () => {
-            stopCamera();
-            showView('home-view');
-        });
-        document.getElementById('back-to-home-from-gallery').addEventListener('click', () => showView('home-view'));
-
-        // --- Camera Logic ---
+        
+        // Navigation Listeners
+        document.getElementById('open-camera-btn').addEventListener('click', () => { showView('camera-view'); initCamera(); });
+        document.getElementById('view-compilation-btn').addEventListener('click', () => { showView('compilation-view'); playCompilation(); });
+        document.getElementById('back-to-home-from-camera').addEventListener('click', () => { stopCamera(); showView('home-view'); });
+        document.getElementById('back-to-home-from-compilation').addEventListener('click', () => { compilationPlayer.pause(); showView('home-view'); });
+        document.getElementById('rerecord-btn').addEventListener('click', () => { showView('camera-view'); initCamera(); });
+        
         async function populateCameraSelector() {
              try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 const videoDevices = devices.filter(device => device.kind === 'videoinput');
                 cameraSelect.innerHTML = '';
-                if (videoDevices.length === 0) {
-                    cameraSelect.innerHTML = '<option>Nenhuma câmera encontrada</option>';
-                    return;
-                }
-                videoDevices.forEach((device, index) => {
-                    const option = document.createElement('option');
-                    option.value = device.deviceId;
-                    option.textContent = device.label || `Câmera ${index + 1}`;
-                    cameraSelect.appendChild(option);
-                });
-             } catch(e) { console.error("Error enumerating devices:", e); }
+                videoDevices.forEach((d, i) => cameraSelect.innerHTML += `<option value="${d.deviceId}">${d.label || `Câmara ${i+1}`}</option>`);
+             } catch(e) { console.error("Error listing devices:", e); }
         }
         cameraSelect.addEventListener('change', () => initCamera(cameraSelect.value));
-
+        
         async function initCamera(deviceId) {
-            stopCamera(); // Stop any existing stream
-            const constraints = {
-                video: { deviceId: deviceId ? { exact: deviceId } : undefined },
-                audio: false
-            };
+            stopCamera();
+            const constraints = { video: { deviceId: deviceId ? { exact: deviceId } : undefined }, audio: false };
             try {
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
                 currentStream = stream;
@@ -184,19 +178,12 @@
                 cameraVideoElement.style.transform = cameraSelect.options[cameraSelect.selectedIndex]?.text.toLowerCase().includes('front') ? 'scaleX(-1)' : 'scaleX(1)';
                 setupMediaRecorder(stream);
                 recordButton.disabled = false;
-            } catch (err) {
-                console.error("Camera access error:", err);
-                showToast("Erro ao aceder à câmara.");
-            }
+            } catch (err) { console.error("Camera error:", err); showToast("Erro ao aceder à câmara."); }
         }
         function stopCamera() {
-            if (currentStream) {
-                currentStream.getTracks().forEach(track => track.stop());
-                currentStream = null;
-            }
+            if (currentStream) currentStream.getTracks().forEach(track => track.stop());
         }
 
-        // --- Recording ---
         recordButton.addEventListener('click', () => {
             if(isRecording) return;
             let count = 3;
@@ -213,72 +200,65 @@
                 if (count === 0) {
                     clearInterval(interval);
                     countdownOverlay.classList.add('opacity-0');
-                    // Start recording
                     recordButton.classList.add('recording');
                     mediaRecorder.start();
-                    setTimeout(() => { 
-                        mediaRecorder.stop(); 
-                        recordButton.classList.remove('recording'); 
-                    }, 1500);
+                    setTimeout(() => { if (mediaRecorder.state === "recording") mediaRecorder.stop(); }, 1500);
                 }
             }, 1000);
         });
 
-        // --- Data Handling ---
         function setupMediaRecorder(stream) {
             mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
             mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
             mediaRecorder.onstop = () => {
-                const blob = new Blob(recordedChunks, { type: 'video/webm' });
-                saveVideo(blob);
+                recordButton.classList.remove('recording');
+                isRecording = false;
+                tempRecordedBlob = new Blob(recordedChunks, { type: 'video/webm' });
+                previewVideoElement.src = URL.createObjectURL(tempRecordedBlob);
                 recordedChunks = [];
+                stopCamera();
+                showView('preview-view');
             };
         }
 
-        async function saveVideo(blob) {
+        document.getElementById('save-clip-btn').addEventListener('click', () => {
+            if (!tempRecordedBlob) return;
             const reader = new FileReader();
-            reader.readAsDataURL(blob);
+            reader.readAsDataURL(tempRecordedBlob);
             reader.onloadend = async () => {
                 const base64data = reader.result;
                 try {
+                    loadingText.textContent = 'A salvar...';
+                    loadingOverlay.style.display = 'flex';
                     const collectionRef = collection(db, `artifacts/${appId}/users/${userId}/videos`);
                     await addDoc(collectionRef, { videoData: base64data, createdAt: serverTimestamp() });
                     showToast("Clipe salvo com sucesso!");
                 } catch (error) { console.error("Error saving video: ", error); } 
                 finally {
-                    isRecording = false;
-                    stopCamera();
+                    tempRecordedBlob = null;
+                    loadingOverlay.style.display = 'none';
                     showView('home-view');
                 }
             };
-        }
-
+        });
+        
         function listenForVideos() {
-            const collectionRef = collection(db, `artifacts/${appId}/users/${userId}/videos`);
-            const q = query(collectionRef, orderBy("createdAt", "asc"));
+            const q = query(collection(db, `artifacts/${appId}/users/${userId}/videos`), orderBy("createdAt", "asc"));
             onSnapshot(q, (snapshot) => {
                 videoClips = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 updateUI();
-                renderGallery();
                 loadingOverlay.style.display = 'none';
             });
         }
         
-        // --- UI Updates ---
         function updateUI() {
              const count = videoClips.length;
              const todayClipsCount = getTodayClipsCount();
-             homeClipCount.textContent = `${count} clipe${count !== 1 ? 's' : ''} gravado${count !== 1 ? 's' : ''} | Hoje: ${todayClipsCount}/${DAILY_CLIP_LIMIT}`;
-             document.getElementById('open-gallery-btn').disabled = count === 0;
+             homeClipCount.textContent = `${count} clipe(s) gravado(s) | Hoje: ${todayClipsCount}/${DAILY_CLIP_LIMIT}`;
+             document.getElementById('view-compilation-btn').disabled = count === 0;
              document.getElementById('export-btn').disabled = count === 0;
              document.getElementById('delete-all-btn').disabled = count === 0;
-             
-             if (todayClipsCount >= DAILY_CLIP_LIMIT) {
-                 recordButton.disabled = true;
-                 recordButton.innerHTML = `<i class="fas fa-check text-3xl"></i>`;
-             } else {
-                 recordButton.innerHTML = `<i class="fas fa-video text-3xl"></i>`;
-             }
+             recordButton.disabled = todayClipsCount >= DAILY_CLIP_LIMIT;
         }
         
         function getTodayClipsCount() {
@@ -286,42 +266,29 @@
             const today = new Date();
             return videoClips.filter(c => c.createdAt && c.createdAt.toDate().toDateString() === today.toDateString()).length;
         }
+        
+        function playCompilation() {
+            if (videoClips.length === 0) return;
+            currentClipIndex = 0;
+            playCurrentCompilationClip();
+        }
 
-        function renderGallery() {
-            galleryGrid.innerHTML = '';
-            if (videoClips.length === 0) {
-                galleryGrid.innerHTML = '<p class="text-gray-500 text-center">Ainda não gravou nenhum clipe.</p>';
+        function playCurrentCompilationClip() {
+            if (currentClipIndex >= videoClips.length) {
+                showToast("Fim do compilado!");
+                setTimeout(() => showView('home-view'), 1000);
                 return;
             }
-            videoClips.forEach(clip => {
-                const date = clip.createdAt ? clip.createdAt.toDate().toLocaleDateString('pt-BR', { dateStyle: 'long', timeStyle: 'short'}) : 'Sem data';
-                const item = document.createElement('div');
-                item.className = 'gallery-item bg-gray-800 p-2 rounded-lg flex flex-col items-center';
-                item.innerHTML = `
-                    <video src="${clip.videoData}" class="rounded-md w-full" controls></video>
-                    <div class="flex justify-between items-center w-full mt-2">
-                        <p class="text-xs text-gray-400">${date}</p>
-                        <button data-id="${clip.id}" class="delete-clip-btn text-red-500 hover:text-red-400 text-lg p-2"><i class="fas fa-trash"></i></button>
-                    </div>`;
-                galleryGrid.appendChild(item);
-            });
+            const clip = videoClips[currentClipIndex];
+            compilationPlayer.src = clip.videoData;
+            compilationDate.textContent = clip.createdAt.toDate().toLocaleDateString('pt-BR', { dateStyle: 'long'});
+            compilationPlayer.play();
         }
-        galleryGrid.addEventListener('click', e => {
-            const btn = e.target.closest('.delete-clip-btn');
-            if (btn) {
-                const clipId = btn.dataset.id;
-                showConfirmationModal(`Tem a certeza que quer apagar este clipe?`, () => deleteClip(clipId));
-            }
+        compilationPlayer.addEventListener('ended', () => {
+            currentClipIndex++;
+            playCurrentCompilationClip();
         });
 
-        async function deleteClip(clipId) {
-            try {
-                await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/videos`, clipId));
-                showToast("Clipe apagado com sucesso.");
-            } catch (e) { console.error("Error deleting clip:", e); showToast("Erro ao apagar clipe."); }
-        }
-
-        // --- Export & Delete All ---
         document.getElementById('export-btn').addEventListener('click', async () => {
             if (videoClips.length === 0) return;
             loadingText.textContent = 'A processar o vídeo...';
@@ -335,39 +302,28 @@
                     return new Blob([ab], { type: 'video/webm' });
                 });
                 const combinedBlob = new Blob(blobs, { type: 'video/webm' });
-                const url = URL.createObjectURL(combinedBlob);
                 const a = document.createElement('a');
-                a.href = url;
+                a.href = URL.createObjectURL(combinedBlob);
                 a.download = `meu_compilado_${new Date().toISOString().slice(0,10)}.webm`;
-                document.body.appendChild(a);
                 a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                URL.revokeObjectURL(a.href);
                 showToast("Download iniciado!");
             } catch(e) { console.error("Export error:", e); showToast("Erro ao exportar vídeo."); }
             finally { loadingOverlay.style.display = 'none'; }
         });
 
         document.getElementById('delete-all-btn').addEventListener('click', () => {
-             showConfirmationModal(`Tem a certeza ABSOLUTA que quer apagar TODOS os ${videoClips.length} clipes? Esta ação é irreversível.`, deleteAllClips);
+             showConfirmationModal(`Tem a certeza que quer apagar TODOS os ${videoClips.length} clipes?`, async () => {
+                loadingText.textContent = 'A apagar...';
+                loadingOverlay.style.display = 'flex';
+                const batch = writeBatch(db);
+                videoClips.forEach(clip => batch.delete(collection(db, `artifacts/${appId}/users/${userId}/videos`).doc(clip.id)));
+                await batch.commit();
+                loadingOverlay.style.display = 'none';
+                showToast("Todos os clipes foram apagados.");
+             });
         });
 
-        async function deleteAllClips() {
-            loadingText.textContent = 'A apagar tudo...';
-            loadingOverlay.style.display = 'flex';
-            try {
-                const batch = writeBatch(db);
-                videoClips.forEach(clip => {
-                    const docRef = doc(db, `artifacts/${appId}/users/${userId}/videos`, clip.id);
-                    batch.delete(docRef);
-                });
-                await batch.commit();
-                showToast("Todos os clipes foram apagados.");
-            } catch(e) { console.error("Error deleting all:", e); showToast("Erro ao apagar tudo."); }
-            finally { loadingOverlay.style.display = 'none'; }
-        }
-        
-        // --- Modal & Toast ---
         let confirmCallback = null;
         function showConfirmationModal(text, onConfirm) {
             modalText.textContent = text;
@@ -386,7 +342,6 @@
             setTimeout(() => { toast.classList.add('opacity-0', 'translate-y-10'); }, 3000);
         }
 
-        // --- Init ---
         (async () => {
             try {
                 const app = initializeApp(firebaseConfig);
@@ -397,14 +352,9 @@
                         userId = user.uid;
                         listenForVideos();
                         populateCameraSelector();
-                    } else {
-                        signInAnonymously(auth);
-                    }
+                    } else signInAnonymously(auth);
                 });
-            } catch (error) {
-                console.error("Firebase init error:", error);
-                loadingOverlay.innerText = "Erro ao conectar.";
-            }
+            } catch (error) { console.error("Firebase init error:", error); }
         })();
     </script>
 </body>
