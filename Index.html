@@ -11,6 +11,7 @@
         html, body {
             height: 100%;
             overflow: hidden;
+            -webkit-tap-highlight-color: transparent; /* Remove o highlight azul ao tocar nos botões */
         }
         body {
             font-family: 'Inter', sans-serif;
@@ -31,8 +32,8 @@
         .fade-transition {
             transition: opacity 0.5s ease-in-out;
         }
-        #toast {
-            transition: transform 0.5s ease, opacity 0.5s ease;
+        #toast, #countdown-overlay {
+            transition: all 0.5s ease;
         }
     </style>
 </head>
@@ -50,6 +51,11 @@
             <div id="loading-overlay" class="absolute inset-0 bg-gray-900 bg-opacity-80 flex flex-col items-center justify-center z-30">
                 <i class="fas fa-spinner fa-spin text-4xl mb-4"></i>
                 <p>Configurando...</p>
+            </div>
+
+             <!-- Countdown -->
+            <div id="countdown-overlay" class="absolute inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center z-40 text-8xl font-bold text-white opacity-0 pointer-events-none">
+                <span id="countdown-text">3</span>
             </div>
 
             <!-- Video Player / Camera View -->
@@ -119,6 +125,8 @@
         const previewDateEl = document.getElementById('preview-date');
         const cameraControls = document.getElementById('camera-controls');
         const previewControls = document.getElementById('preview-controls');
+        const countdownOverlay = document.getElementById('countdown-overlay');
+        const countdownText = document.getElementById('countdown-text');
 
         // --- Estado do Aplicativo ---
         let db, auth;
@@ -129,6 +137,9 @@
         let currentClipIndex = 0;
         let isRecording = false;
         let currentFacingMode = 'user';
+        let videoDevices = [];
+        let currentDeviceIndex = 0;
+        const DAILY_CLIP_LIMIT = 3;
 
         // --- Inicialização ---
         async function initializeFirebase() {
@@ -150,10 +161,11 @@
             }
         }
 
-        function setupApp() {
+        async function setupApp() {
+            await getVideoDevices();
             initCamera();
             listenForVideos();
-            recordButton.addEventListener('click', toggleRecording);
+            recordButton.addEventListener('click', handleRecordClick);
             previewButton.addEventListener('click', playCompilation);
             backToCameraButton.addEventListener('click', showCameraView);
             switchCameraButton.addEventListener('click', switchCamera);
@@ -161,20 +173,49 @@
         }
 
         // --- Câmera ---
+        async function getVideoDevices() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const frontCameras = devices.filter(d => d.kind === 'videoinput' && d.label.toLowerCase().includes('front'));
+                const backCameras = devices.filter(d => d.kind === 'videoinput' && !d.label.toLowerCase().includes('front'));
+                
+                // Prioriza câmeras que não sejam "wide" ou "ultra wide"
+                const preferredBackCamera = backCameras.find(d => !d.label.toLowerCase().includes('wide')) || backCameras[0];
+                const preferredFrontCamera = frontCameras[0];
+
+                videoDevices = [];
+                if (preferredFrontCamera) videoDevices.push(preferredFrontCamera);
+                if (preferredBackCamera) videoDevices.push(preferredBackCamera);
+                
+                switchCameraButton.disabled = videoDevices.length < 2;
+
+            } catch (err) {
+                 console.error("Erro ao listar dispositivos de vídeo:", err);
+            }
+        }
+
         async function initCamera() {
             if (cameraView.srcObject) {
                 cameraView.srcObject.getTracks().forEach(track => track.stop());
             }
-            cameraView.style.transform = currentFacingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
+
+            if(videoDevices.length === 0) {
+                alert("Nenhuma câmera encontrada.");
+                return;
+            }
+            
+            const device = videoDevices[currentDeviceIndex];
+            const isFrontFacing = device.label.toLowerCase().includes('front');
+            cameraView.style.transform = isFrontFacing ? 'scaleX(-1)' : 'scaleX(1)';
+
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: currentFacingMode }, 
+                    video: { deviceId: { exact: device.deviceId } }, 
                     audio: false 
                 });
                 cameraView.srcObject = stream;
                 setupMediaRecorder(stream);
                 recordButton.disabled = false;
-                switchCameraButton.disabled = false;
             } catch (err) {
                 console.error("Erro ao acessar a câmera:", err);
                 alert("Não foi possível acessar a câmera. Verifique as permissões.");
@@ -183,13 +224,47 @@
         }
 
         function switchCamera() {
-            currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+            currentDeviceIndex = (currentDeviceIndex + 1) % videoDevices.length;
             recordButton.disabled = true;
-            switchCameraButton.disabled = true;
             initCamera();
         }
 
-        // --- Gravação e Salvamento ---
+        // --- Gravação e Contagem Regressiva ---
+        function handleRecordClick() {
+            if (isRecording) return;
+            startCountdown();
+        }
+
+        function startCountdown() {
+            let count = 3;
+            countdownText.textContent = count;
+            countdownOverlay.classList.remove('opacity-0');
+            isRecording = true;
+            recordButton.disabled = true;
+            previewButton.disabled = true;
+            switchCameraButton.disabled = true;
+
+            const interval = setInterval(() => {
+                count--;
+                countdownText.textContent = count;
+                if (count === 0) {
+                    clearInterval(interval);
+                    countdownOverlay.classList.add('opacity-0');
+                    startRecording();
+                }
+            }, 1000);
+        }
+
+        function startRecording() {
+            recordButton.classList.add('recording');
+            mediaRecorder.start();
+            setTimeout(() => { 
+                mediaRecorder.stop(); 
+                recordButton.classList.remove('recording'); 
+            }, 1500);
+        }
+
+        // --- Salvamento e Base de Dados ---
         function setupMediaRecorder(stream) {
             mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
             mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
@@ -198,17 +273,6 @@
                 saveVideo(blob);
                 recordedChunks = [];
             };
-        }
-
-        function toggleRecording() {
-            if (isRecording) return;
-            isRecording = true;
-            recordButton.classList.add('recording');
-            recordButton.disabled = true;
-            previewButton.disabled = true;
-            switchCameraButton.disabled = true;
-            mediaRecorder.start();
-            setTimeout(() => { mediaRecorder.stop(); recordButton.classList.remove('recording'); }, 1500);
         }
 
         function saveVideo(blob) {
@@ -225,7 +289,7 @@
                     alert("Ocorreu um erro ao salvar seu clipe.");
                 } finally {
                     isRecording = false;
-                    updateUIWithVideoData();
+                    updateUIWithVideoData(); // A UI será atualizada quando o onSnapshot detetar a mudança
                 }
             };
         }
@@ -246,29 +310,33 @@
         // --- UI e Reprodução ---
         function updateUIWithVideoData() {
             const count = videoClips.length;
-            clipCountEl.textContent = count === 1 ? '1 clipe gravado' : `${count} clipes gravados`;
+            const todayClipsCount = getTodayClipsCount();
+
+            clipCountEl.textContent = `${count} clipe${count !== 1 ? 's' : ''} gravado${count !== 1 ? 's' : ''} | Hoje: ${todayClipsCount}/${DAILY_CLIP_LIMIT}`;
             previewButton.disabled = count === 0;
-            switchCameraButton.disabled = isRecording;
-            if (isTodayClipRecorded()) {
+            switchCameraButton.disabled = isRecording || videoDevices.length < 2;
+            
+            if (todayClipsCount >= DAILY_CLIP_LIMIT) {
                 recordButton.disabled = true;
                 recordButton.innerHTML = `<i class="fas fa-check text-3xl"></i>`;
-                recordButton.title = "Você já gravou o clipe de hoje!";
+                recordButton.title = "Você atingiu o limite de clipes de hoje!";
             } else {
                  recordButton.disabled = isRecording;
                  recordButton.innerHTML = `<i class="fas fa-video text-3xl"></i>`;
-                 recordButton.title = "Grave o clipe de hoje";
+                 recordButton.title = `Grave (${todayClipsCount}/${DAILY_CLIP_LIMIT} hoje)`;
             }
         }
         
-        function isTodayClipRecorded() {
-            if (videoClips.length === 0) return false;
-            const lastClip = videoClips[videoClips.length - 1];
-            if (!lastClip.createdAt) return false;
-            const lastClipDate = lastClip.createdAt.toDate();
+        function getTodayClipsCount() {
+            if (videoClips.length === 0) return 0;
             const today = new Date();
-            return lastClipDate.getFullYear() === today.getFullYear() &&
-                   lastClipDate.getMonth() === today.getMonth() &&
-                   lastClipDate.getDate() === today.getDate();
+            return videoClips.filter(clip => {
+                 if (!clip.createdAt) return false;
+                 const clipDate = clip.createdAt.toDate();
+                 return clipDate.getFullYear() === today.getFullYear() &&
+                        clipDate.getMonth() === today.getMonth() &&
+                        clipDate.getDate() === today.getDate();
+            }).length;
         }
 
         function showPreviewView() {
@@ -323,6 +391,5 @@
     </script>
 </body>
 </html>
-
 
 
